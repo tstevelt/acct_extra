@@ -1,0 +1,41 @@
+#!/bin/sh
+
+
+home=`pwd`
+
+for dir in `find . -type d -print | sort`
+do
+	if [ -f $dir/NOMAKE ]
+	then
+		echo "skipping NOMAKE $dir !!!"
+		continue
+	fi
+	if [ -f $dir/makefile -a -f $dir/LIB ]
+	then
+		echo "==== $dir ===="
+		cd $dir
+		make $* 2>&1
+		cd $home
+	fi
+done | tee MAKERESULTS
+
+for dir in `find . -type d -print | sort`
+do
+	if [ -f $dir/LIB ]
+	then
+		echo "skipping LIB $dir !!!"
+		continue
+	fi
+	if [ -f $dir/NOMAKE ]
+	then
+		echo "skipping NOMAKE $dir !!!"
+		continue
+	fi
+	if [ -f $dir/makefile ]
+	then
+		echo "==== $dir ===="
+		cd $dir
+		make $* 2>&1
+		cd $home
+	fi
+done | tee -a MAKERESULTS
