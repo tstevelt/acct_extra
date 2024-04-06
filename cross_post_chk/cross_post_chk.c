@@ -54,6 +54,9 @@ typedef struct
 	long	AssetAcct;
 	long	SecurityAcct;
 	long	IncomeAcct;
+	long	DistAcct;
+	long	ContraAcct;
+	int		AccountCount;
 } RECORD;
 
 #define		MAXGROUPS		20
@@ -70,7 +73,8 @@ int main ( int argc, char *argv[] )
 	char		Fragment[256];
 	FILE		*fp;
 	char		buffer[1024];
-	char		*tokens[5];
+#define		MAXTOKS		7
+	char		*tokens[MAXTOKS];
 	int			tokcnt;
 	int			Checked = 0;
 	int			Errors = 0;
@@ -91,7 +95,7 @@ int main ( int argc, char *argv[] )
 			continue;
 		}
 
-		if (( tokcnt = GetTokensD ( buffer, ",\n\r", tokens, 5 )) < 4 )
+		if (( tokcnt = GetTokensD ( buffer, ",\n\r", tokens, MAXTOKS )) < 4 )
 		{
 			continue;
 		}
@@ -106,6 +110,13 @@ int main ( int argc, char *argv[] )
 		Array[Count].AssetAcct    = atol(tokens[1]);
 		Array[Count].SecurityAcct = atol(tokens[2]);
 		Array[Count].IncomeAcct   = atol(tokens[3]);
+		Array[Count].AccountCount = 3;
+		if ( tokcnt == 6 )
+		{
+			Array[Count].DistAcct   = atol(tokens[4]);
+			Array[Count].ContraAcct = atol(tokens[5]);
+			Array[Count].AccountCount = 5;
+		}
 		Count++;
 	}
 
@@ -155,15 +166,37 @@ int main ( int argc, char *argv[] )
 			printf ( "  Invalid account number %ld\n",  Array[xg].IncomeAcct );
 			Errors++;
 		}
+		if ( Array[xg].AccountCount == 5 )
+		{
+			if ( LoadOneAccount ( Array[xg].DistAcct ) != 1 )
+			{
+				printf ( "  Invalid account number %ld\n",  Array[xg].DistAcct );
+				Errors++;
+			}
+			if ( LoadOneAccount ( Array[xg].ContraAcct ) != 1 )
+			{
+				printf ( "  Invalid account number %ld\n",  Array[xg].ContraAcct );
+				Errors++;
+			}
+		}
 		if ( Errors  )
 		{
 			printf ( "  SKIPPING THIS GROUP %s\n", Array[xg].GroupName );
 			continue;
 		}
 		
-		sprintf ( StatementOne, 
-			"select distinct trxd.trxnum from trxd, trxh where trxd.trxnum = trxh.trxnum and trxd.acctnum in ( %ld, %ld, %ld )",
-				Array[xg].AssetAcct, Array[xg].SecurityAcct, Array[xg].IncomeAcct );
+		if ( Array[xg].AccountCount == 3 )
+		{
+			sprintf ( StatementOne, 
+				"select distinct trxd.trxnum from trxd, trxh where trxd.trxnum = trxh.trxnum and trxd.acctnum in ( %ld, %ld, %ld )",
+					Array[xg].AssetAcct, Array[xg].SecurityAcct, Array[xg].IncomeAcct );
+		}
+		else
+		{
+			sprintf ( StatementOne, 
+				"select distinct trxd.trxnum from trxd, trxh where trxd.trxnum = trxh.trxnum and trxd.acctnum in ( %ld, %ld, %ld, %ld, %ld )",
+					Array[xg].AssetAcct, Array[xg].SecurityAcct, Array[xg].IncomeAcct, Array[xg].DistAcct, Array[xg].ContraAcct );
+		}
 
 		if ( LimitYear != NULL )
 		{
@@ -192,7 +225,7 @@ int main ( int argc, char *argv[] )
 				printf ( "  %ld\n",  xtrxh.xtrxnum );
 			}
 
-			sprintf ( StatementTwo, "select acctnum, seqnum, amount from trxd where trxd.trxnum = %ld", xtrxh.xtrxnum );
+			sprintf ( StatementTwo, "select acctnum, seqnum, amount, payee from trxd where trxd.trxnum = %ld", xtrxh.xtrxnum );
 			if ( Debug )
 			{
 				printf ( "%s\n", StatementTwo );
@@ -203,24 +236,46 @@ int main ( int argc, char *argv[] )
 				xtrxd.xacctnum = safe_atol (  QueryTwo->EachRow[0] );
 				xtrxd.xseqnum  = safe_atol (  QueryTwo->EachRow[1] );
 				xtrxd.xamount  = safe_atol (  QueryTwo->EachRow[2] );
+				snprintf ( xtrxd.xpayee, sizeof(xtrxd.xpayee), "%s", QueryTwo->EachRow[3] );
 				if ( Debug )
 				{
 					printf ( "    %ld %d\n",  xtrxd.xacctnum, xtrxd.xseqnum );
 				}
 
-				if (( xtrxd.xacctnum !=  Array[xg].AssetAcct    ) &&
-					( xtrxd.xacctnum !=  Array[xg].SecurityAcct ) &&
-					( xtrxd.xacctnum !=  Array[xg].IncomeAcct   ))
+				int		PrintIt = 0;
+
+				if ( Array[xg].AccountCount == 3 )
+				{
+					if (( xtrxd.xacctnum !=  Array[xg].AssetAcct    ) &&
+						( xtrxd.xacctnum !=  Array[xg].SecurityAcct ) &&
+						( xtrxd.xacctnum !=  Array[xg].IncomeAcct   ))
+					{
+						PrintIt = 1;
+					}
+				}
+				else
+				{
+					if (( xtrxd.xacctnum !=  Array[xg].AssetAcct    ) &&
+						( xtrxd.xacctnum !=  Array[xg].SecurityAcct ) &&
+						( xtrxd.xacctnum !=  Array[xg].IncomeAcct   ) &&
+						( xtrxd.xacctnum !=  Array[xg].DistAcct     ) &&
+						( xtrxd.xacctnum !=  Array[xg].ContraAcct   ))
+					{
+						PrintIt = 1;
+					}
+				}
+				if ( PrintIt )
 				{
 					LoadOneTrxh ( xtrxh.xtrxnum );
 					LoadOneAccount ( xtrxd.xacctnum );
-					printf ( "  TRX %5ld %-8.8s %2d/%02d/%04d %9.2f, CROSS ACCT %5ld %s\n",
+					printf ( "  TRX %5ld %-8.8s %2d/%02d/%04d %9.2f %-20.20s, CROSS ACCT %5ld %s\n",
 						xtrxh.xtrxnum,
 						xtrxh.xrefnum,
 						xtrxh.xtrxdate.month,
 						xtrxh.xtrxdate.day,
 						xtrxh.xtrxdate.year4,
 						(double) xtrxd.xamount / 100.0,
+						xtrxd.xpayee,
 						xtrxd.xacctnum,
 						xaccount.xacctname );
 				}
