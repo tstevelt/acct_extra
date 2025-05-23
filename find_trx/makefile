@@ -1,12 +1,15 @@
-PROG = acct_chk
-LIB = acct_chk.a
+PROG = find_trx
+LIB = find_trx.a
+
 DEF = /usr/local/include
 PRG = /usr/local/bin/$(PROG)
 
 #MYSQL_DIR = /usr/lib64
 #MYSQL_FLAGS = -lz -lcrypt -lm -lssl -lcrypto
-
 #XLIB = /usr/local/lib64/acctlib.a /usr/local/lib64/dbylib.a  /usr/local/lib64/weblib.a /usr/local/lib64/shslib.a $(MYSQL_DIR)/libmysqlclient.so $(MYSQL_FLAGS)
+
+# CFLAGS = -fsanitize=address -g -Wall -Wformat-truncation=0 -I../../include -I/usr/local/include
+
 
 XLIB = /usr/local/lib64/acctlib.a /usr/local/lib64/weblib.a /usr/local/lib64/dbylib.a /usr/local/lib64/shslib.a  \
 		/usr/local/lib/libmysqlclient.a \
@@ -21,7 +24,7 @@ XLIB = /usr/local/lib64/acctlib.a /usr/local/lib64/weblib.a /usr/local/lib64/dby
 
 
 FILES = \
-	$(LIB)(acct_chk.o)	\
+	$(LIB)(find_trx.o)	\
 	$(LIB)(getargs.o)
 
 .SILENT:
@@ -29,10 +32,11 @@ FILES = \
 $(PRG): $(LIB) $(XLIB)
 	echo "using gcc to load $(PRG)"
 	gcc -o $(PRG) $(LIB) $(XLIB)
+	# gcc -fsanitize=address -o $(PRG) $(LIB) $(XLIB)
 
 $(LIB): $(FILES)
 
-$(FILES): acct_chk.h $(DEF)/acctlib.h $(DEF)/fileacct.h $(DEF)/dbylib.h $(DEF)/shslib.h
+$(FILES): find_trx.h $(DEF)/acctlib.h $(DEF)/fileacct.h $(DEF)/dbylib.h $(DEF)/shslib.h
 
 clean:
 	rm -f $(LIB)
